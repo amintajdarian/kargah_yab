@@ -14,11 +14,27 @@ class MapScreen extends ConsumerStatefulWidget {
 }
 
 class _MapScreenState extends ConsumerState<MapScreen> {
-  NeshanMapController? _mapController;
+  final NeshanMapController _mapController = NeshanMapController();
   bool _isMapReady = false;
+  LatLng? _currentCenter;
 
   // Swap this with your actual Neshan web map key from platform.neshan.org
   static const String _neshanWebKey = 'web.9eac8e1b3e014635b3215228ad201b3c';
+
+  @override
+  void initState() {
+    super.initState();
+    _initMap();
+  }
+
+  Future<void> _initMap() async {
+    await _mapController.ready;
+    if (mounted) {
+      setState(() {
+        _isMapReady = true;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +44,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     // Initial center coordinates
     final initialLat = locationState.latitude ?? 35.6892;
     final initialLng = locationState.longitude ?? 51.3890;
+
+    // Set initial center if not already set
+    _currentCenter ??= LatLng(initialLat, initialLng);
 
     return Scaffold(
       appBar: AppBar(
@@ -42,8 +61,12 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           // Neshan Map Widget
           NeshanMap(
             mapKey: _neshanWebKey,
+            controller: _mapController,
+            onLocationChanged: (double lat, double lng) {
+              _currentCenter = LatLng(lat, lng);
+            },
             config: NeshanMapConfig(
-              mapType: NeshanMapType.neshanRasterNight,
+              mapType: NeshanMapType.neshanRaster,
               initialCenter: LatLng(initialLat, initialLng),
               initialZoom: 15.0,
               showTraffic: false,
@@ -116,23 +139,33 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _confirmLocation() async {
-    if (_mapController == null) return;
-
     try {
-      // Ensure controller is fully loaded
-      await _mapController!.ready;
+      // Use the tracked center coordinate
+      final center = _currentCenter;
 
-      // Fetch the center coordinates of the map camera
-      final LatLng? center = await _mapController!.getCurrentLocation();
+      if (center != null) {
+        // Update the location state globally
+        ref.read(locationProvider.notifier).updateManualLocation(center.latitude, center.longitude);
 
-      // Update the location state
-      ref.read(locationProvider.notifier).updateManualLocation(center!.latitude, center.longitude);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('موقعیت جدید ثبت شد.'), duration: Duration(seconds: 1)),
-        );
-        Navigator.pop(context);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('موقعیت جدید با موفقیت ثبت شد.'),
+              duration: Duration(seconds: 2),
+              backgroundColor: Colors.green,
+            ),
+          );
+          // Return to the previous screen (FormScreen)
+          Navigator.of(context).pop();
+        }
+      } else {
+        // Fallback if _currentCenter is somehow null
+        await _mapController.ready;
+        final LatLng? fallbackCenter = await _mapController.getCurrentLocation();
+        if (fallbackCenter != null) {
+          ref.read(locationProvider.notifier).updateManualLocation(fallbackCenter.latitude, fallbackCenter.longitude);
+          if (mounted) Navigator.of(context).pop();
+        }
       }
     } catch (e) {
       if (mounted) {

@@ -59,6 +59,7 @@ class FormController extends StateNotifier<FormState> {
     required String phone1,
     required String phone2,
     required String product,
+    required String industrialTown,
     required String address,
     required String website,
     required String socialMedia,
@@ -74,6 +75,7 @@ class FormController extends StateNotifier<FormState> {
     if (factoryName.trim().isEmpty ||
         managerName.trim().isEmpty ||
         phone1.trim().isEmpty ||
+        industrialTown.trim().isEmpty ||
         address.trim().isEmpty) {
       state = state.copyWith(isSaving: false, errorMessage: 'لطفا فیلدهای ضروری را پر کنید.');
       return false;
@@ -86,6 +88,7 @@ class FormController extends StateNotifier<FormState> {
         phone1: phone1,
         phone2: phone2,
         product: product,
+        industrialTown: industrialTown,
         address: address,
         website: website,
         socialMedia: socialMedia,

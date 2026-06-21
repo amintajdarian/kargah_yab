@@ -1,10 +1,11 @@
 class WorkshopFormModel {
   final int? id;
-  final String factoryName;
+  final String factoryName; // Still named factoryName internally, but label is Industrial Workshop
   final String managerName;
   final String phone1;
   final String phone2;
   final String product;
+  final String industrialTown;
   final String address;
   final String website;
   final String socialMedia;
@@ -22,6 +23,7 @@ class WorkshopFormModel {
     required this.phone1,
     required this.phone2,
     required this.product,
+    required this.industrialTown,
     required this.address,
     required this.website,
     required this.socialMedia,
@@ -41,6 +43,7 @@ class WorkshopFormModel {
       'phone1': phone1,
       'phone2': phone2,
       'product': product,
+      'industrialTown': industrialTown,
       'address': address,
       'website': website,
       'socialMedia': socialMedia,
@@ -61,6 +64,7 @@ class WorkshopFormModel {
       phone1: map['phone1'] ?? '',
       phone2: map['phone2'] ?? '',
       product: map['product'] ?? '',
+      industrialTown: map['industrialTown'] ?? '',
       address: map['address'] ?? '',
       website: map['website'] ?? '',
       socialMedia: map['socialMedia'] ?? '',
@@ -77,39 +81,46 @@ class WorkshopFormModel {
   static List<String> getExcelHeaders() {
     return [
       'ردیف',
-      'نام کارخانه',
-      'مسئول کارخانه',
-      'تلفن کارخانه 1',
-      'تلفن کارخانه 2',
+      'نام کارگاه صنعتی',
+      'مسئول کارگاه صنعتی',
+      'تلفن کارگاه 1',
+      'تلفن کارگاه 2',
       'محصول تولیدی',
-      'آدرس کارخانه',
+      'شهرک صنعتی',
+      'آدرس کارگاه صنعتی',
       'سایت',
       'شبکه اجتماعی و پیامرسان',
       'توضیحات',
       'عرض جغرافیایی (Latitude)',
       'طول جغرافیایی (Longitude)',
-      'آدرس نشان',
+      'آدرس',
       'ثبت توسط',
       'تاریخ و ساعت',
     ];
   }
 
   // Returns data as list of values corresponding to headers
-  List<dynamic> toExcelRow() {
+  List<dynamic> toExcelRow(int rowNumber) {
+    String generatedNeshanUrl = neshanAddress;
+    if (latitude != null && longitude != null) {
+      generatedNeshanUrl = 'https://neshan.org/maps/@$latitude,$longitude,15z,0p';
+    }
+
     return [
-      id,
+      rowNumber,
       factoryName,
       managerName,
       phone1,
       phone2,
       product,
+      industrialTown,
       address,
       website,
       socialMedia,
       description,
       latitude,
       longitude,
-      neshanAddress,
+      generatedNeshanUrl,
       registeredBy,
       createdAt,
     ];

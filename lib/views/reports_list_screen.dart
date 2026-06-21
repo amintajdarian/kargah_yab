@@ -5,7 +5,7 @@ import 'package:gap/gap.dart';
 import 'package:kargah_yab/controllers/form_controller.dart';
 import 'package:kargah_yab/controllers/report_controller.dart';
 import 'package:kargah_yab/models/workshop_form.dart';
-import 'package:shamsi_date/shamsi_date.dart';
+import 'package:persian_datetime_picker/persian_datetime_picker.dart';
 
 class ReportsListScreen extends ConsumerStatefulWidget {
   const ReportsListScreen({super.key});
@@ -26,23 +26,16 @@ class _ReportsListScreenState extends ConsumerState<ReportsListScreen> {
   }
 
   Future<void> _pickDate() async {
-    final DateTime? picked = await showDatePicker(
+    final Jalali? picked = await showPersianDatePicker(
       context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
-      builder: (context, child) {
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: child!,
-        );
-      },
+      initialDate: Jalali.now(),
+      firstDate: Jalali(1399, 1),
+      lastDate: Jalali(1410, 12),
     );
 
     if (picked != null) {
-      final Jalali jDate = Jalali.fromDateTime(picked);
       setState(() {
-        _selectedDateFilter = '${jDate.year}/${jDate.month}/${jDate.day}';
+        _selectedDateFilter = '${picked.year}/${picked.month}/${picked.day}';
       });
       ref.read(formControllerProvider.notifier).loadWorkshopsByDate(_selectedDateFilter!);
     }
@@ -113,14 +106,6 @@ class _ReportsListScreenState extends ConsumerState<ReportsListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('گزارش‌ها و خروجی اکسل'),
-        actions: [
-          if (_selectedDateFilter != null)
-            IconButton(
-              icon: const Icon(Icons.filter_alt_off_outlined),
-              tooltip: 'حذف فیلتر',
-              onPressed: _clearFilter,
-            ),
-        ],
       ),
       body: SafeArea(
         child: Stack(
@@ -149,6 +134,15 @@ class _ReportsListScreenState extends ConsumerState<ReportsListScreen> {
                             ),
                           ),
                         ),
+                        if (_selectedDateFilter != null) ...[
+                          Gap(8.w),
+                          IconButton.filled(
+                            onPressed: _clearFilter,
+                            icon: const Icon(Icons.filter_alt_off),
+                            style: IconButton.styleFrom(backgroundColor: Colors.redAccent),
+                            tooltip: 'حذف فیلتر',
+                          ),
+                        ],
                         Gap(8.w),
                         Expanded(
                           child: ElevatedButton.icon(
@@ -163,112 +157,117 @@ class _ReportsListScreenState extends ConsumerState<ReportsListScreen> {
                         ),
                       ],
                     ),
-                      Gap(16.h),
+                    Gap(16.h),
 
-                      Text(
-                        _selectedDateFilter == null
-                            ? 'لیست تمامی کارخانه‌های ثبت شده (${workshops.length})'
-                            : 'کارخانه‌های ثبت شده در تاریخ $_selectedDateFilter (${workshops.length})',
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      Gap(12.h),
+                    Text(
+                      _selectedDateFilter == null
+                          ? 'لیست تمامی کارگاه‌های صنعتی ثبت شده (${workshops.length})'
+                          : 'کارگاه‌های صنعتی ثبت شده در تاریخ $_selectedDateFilter (${workshops.length})',
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    Gap(12.h),
 
-                      Expanded(
-                        child: workshops.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.folder_open, size: 64.r, color: Colors.grey),
-                                    Gap(12.h),
-                                    Text(
-                                      _selectedDateFilter == null
-                                          ? 'هیچ کارخانه‌ای ثبت نشده است.'
-                                          : 'هیچ کارخانه‌ای در این تاریخ ثبت نشده است.',
-                                      style: const TextStyle(color: Colors.grey),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : ListView.builder(
-                                itemCount: workshops.length,
-                                itemBuilder: (context, index) {
-                                  final item = workshops[index];
-                                  return Card(
-                                    margin: EdgeInsets.only(bottom: 12.h),
-                                    child: Padding(
-                                      padding: EdgeInsets.all(16.w),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  item.factoryName,
-                                                  style: theme.textTheme.titleMedium?.copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: theme.colorScheme.primary,
-                                                  ),
-                                                  overflow: TextOverflow.ellipsis,
+                    Expanded(
+                      child: workshops.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.folder_open, size: 64.r, color: Colors.grey),
+                                  Gap(12.h),
+                                  Text(
+                                    _selectedDateFilter == null
+                                        ? 'هیچ کارگاه صنعتی ثبت نشده است.'
+                                        : 'هیچ کارگاه صنعتی در این تاریخ ثبت نشده است.',
+                                    style: const TextStyle(color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              itemCount: workshops.length,
+                              itemBuilder: (context, index) {
+                                final item = workshops[index];
+                                return Card(
+                                  margin: EdgeInsets.only(bottom: 12.h),
+                                  child: Padding(
+                                    padding: EdgeInsets.all(16.w),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                '${index + 1}. ${item.factoryName}',
+                                                style: theme.textTheme.titleMedium?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: theme.colorScheme.primary,
                                                 ),
+                                                overflow: TextOverflow.ellipsis,
                                               ),
-                                              IconButton(
-                                                icon: const Icon(
-                                                  Icons.delete_outline,
-                                                  color: Colors.redAccent,
-                                                ),
-                                                onPressed: () =>
-                                                    _confirmDelete(item.id, item.factoryName),
-                                              ),
-                                            ],
-                                          ),
-                                          const Divider(height: 16),
-
-                                          _buildDetailRow(
-                                            Icons.person,
-                                            'مدیر کارخانه',
-                                            item.managerName,
-                                          ),
-                                          _buildDetailRow(Icons.phone, 'تلفن ۱', item.phone1),
-                                          if (item.phone2.isNotEmpty)
-                                            _buildDetailRow(
-                                              Icons.phone_android,
-                                              'تلفن ۲',
-                                              item.phone2,
                                             ),
-                                          _buildDetailRow(
-                                            Icons.inventory,
-                                            'محصول تولیدی',
-                                            item.product,
-                                          ),
-                                          _buildDetailRow(Icons.location_on, 'آدرس', item.address),
-
-                                          if (item.latitude != null) ...[
-                                            Gap(4.h),
-                                            _buildDetailRow(
-                                              Icons.gps_fixed,
-                                              'موقعیت (GPS)',
-                                              '${item.latitude!.toStringAsFixed(6)}, ${item.longitude!.toStringAsFixed(6)}',
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.delete_outline,
+                                                color: Colors.redAccent,
+                                              ),
+                                              onPressed: () =>
+                                                  _confirmDelete(item.id, item.factoryName),
                                             ),
                                           ],
+                                        ),
+                                        const Divider(height: 16),
+
+                                        _buildDetailRow(
+                                          Icons.person,
+                                          'مدیر کارگاه صنعتی',
+                                          item.managerName,
+                                        ),
+                                        _buildDetailRow(Icons.phone, 'تلفن ۱', item.phone1),
+                                        if (item.phone2.isNotEmpty)
                                           _buildDetailRow(
-                                            Icons.date_range,
-                                            'تاریخ ثبت',
-                                            item.createdAt,
+                                            Icons.phone_android,
+                                            'تلفن ۲',
+                                            item.phone2,
+                                          ),
+                                        _buildDetailRow(
+                                          Icons.inventory,
+                                          'محصول تولیدی',
+                                          item.product,
+                                        ),
+                                        _buildDetailRow(
+                                          Icons.location_city,
+                                          'شهرک صنعتی',
+                                          item.industrialTown,
+                                        ),
+                                        _buildDetailRow(Icons.location_on, 'آدرس', item.address),
+
+                                        if (item.latitude != null) ...[
+                                          Gap(4.h),
+                                          _buildDetailRow(
+                                            Icons.gps_fixed,
+                                            'موقعیت (GPS)',
+                                            '${item.latitude!.toStringAsFixed(6)}, ${item.longitude!.toStringAsFixed(6)}',
                                           ),
                                         ],
-                                      ),
+                                        _buildDetailRow(
+                                          Icons.date_range,
+                                          'تاریخ ثبت',
+                                          item.createdAt,
+                                        ),
+                                      ],
                                     ),
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
                 ),
               ),
+            ),
 
             if (reportState.isExporting)
               Container(
@@ -324,8 +323,8 @@ class _ReportsListScreenState extends ConsumerState<ReportsListScreen> {
       builder: (context) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
-          title: const Text('حذف کارخانه'),
-          content: Text('آیا از حذف اطلاعات کارخانه "$name" مطمئن هستید؟'),
+          title: const Text('حذف کارگاه صنعتی'),
+          content: Text('آیا از حذف اطلاعات کارگاه صنعتی "$name" مطمئن هستید؟'),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('انصراف')),
             TextButton(

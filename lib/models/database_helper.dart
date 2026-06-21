@@ -10,7 +10,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('workshops_v2.db'); // Changed DB name to ensure fresh table
+    _database = await _initDB('workshops_v3.db'); // Incremented version to add industrialTown field
     return _database!;
   }
 
@@ -34,6 +34,7 @@ class DatabaseHelper {
         phone1 TEXT NOT NULL,
         phone2 TEXT NOT NULL,
         product TEXT NOT NULL,
+        industrialTown TEXT NOT NULL,
         address TEXT NOT NULL,
         website TEXT NOT NULL,
         socialMedia TEXT NOT NULL,

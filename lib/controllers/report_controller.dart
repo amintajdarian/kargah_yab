@@ -41,7 +41,7 @@ class ReportController extends StateNotifier<ReportState> {
     try {
       // Create Excel document
       final excel = Excel.createExcel();
-      final sheetName = 'گزارش کارخانه‌ها';
+      final sheetName = 'گزارش کارگاه‌های صنعتی';
       excel.rename('Sheet1', sheetName);
       final sheet = excel[sheetName];
       sheet.isRTL = true; // Persian layout is Right-to-Left
@@ -138,7 +138,7 @@ class ReportController extends StateNotifier<ReportState> {
       sheet.merge(
         CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0),
         CellIndex.indexByColumnRow(columnIndex: totalColumns - 1, rowIndex: 0),
-        customValue: TextCellValue('گزارش روزانه کارخانه‌های ثبت شده - تاریخ: $dateLabel'),
+        customValue: TextCellValue('گزارش روزانه کارگاه‌های صنعتی ثبت شده - تاریخ: $dateLabel'),
       );
 
       // Style Title Cell
@@ -161,7 +161,7 @@ class ReportController extends StateNotifier<ReportState> {
       // Row 3 onwards: Data Rows
       for (int rowIndex = 0; rowIndex < workshops.length; rowIndex++) {
         final item = workshops[rowIndex];
-        final rowData = item.toExcelRow();
+        final rowData = item.toExcelRow(rowIndex + 1);
         final currentRowIdx = 3 + rowIndex;
         final currentStyle = rowIndex % 2 == 0 ? cellStyleOdd : cellStyleEven;
 

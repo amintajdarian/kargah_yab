@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shamsi_date/shamsi_date.dart';
+
 import '../controllers/auth_controller.dart';
-import '../controllers/location_controller.dart';
 import '../controllers/form_controller.dart' hide FormState;
+import '../controllers/location_controller.dart';
 import 'map_screen.dart';
 
 class FormScreen extends ConsumerStatefulWidget {
@@ -18,7 +19,7 @@ class FormScreen extends ConsumerStatefulWidget {
 
 class _FormScreenState extends ConsumerState<FormScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   final _factoryNameController = TextEditingController();
   final _managerNameController = TextEditingController();
   final _phone1Controller = TextEditingController();
@@ -29,6 +30,29 @@ class _FormScreenState extends ConsumerState<FormScreen> {
   final _socialMediaController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _neshanAddressController = TextEditingController();
+
+  String? _selectedTown;
+
+  final List<String> _industrialTowns = [
+    'شهر سنگ تهران',
+    'شهرک صنعتی چهاردانگه',
+    'شهرک صنعتی سهند تهران',
+    'شهرک صنعتی خرمدشت تهران',
+    'شهرک صنعتی قرچک',
+    'شهرک صنعتی نصیرآباد',
+    'شهرک صنعتی پرند',
+    'ناحیه صنعتی دهک',
+    'شهرک صنعتی خوارزمی',
+    'شهرک صنعتی عباس آباد',
+    'شهرک صنعتی شمس آباد',
+    'ناحیه صنعتی بیجین ری',
+    'شهرک صنعتی پیشوا',
+    'شهرک صنعتی پایتخت',
+    'ناحیه صنعتی آیینه ورزان',
+    'شهرک صنعتی چرمشهر',
+    'شهرک صنعتی سالاریه',
+    'شهرک صنعتی فیروزکوه',
+  ];
 
   @override
   void initState() {
@@ -64,15 +88,29 @@ class _FormScreenState extends ConsumerState<FormScreen> {
     _socialMediaController.clear();
     _descriptionController.clear();
     _neshanAddressController.clear();
+    setState(() {
+      _selectedTown = null;
+    });
     ref.read(locationProvider.notifier).clearLocation();
   }
 
   Future<void> _submitForm(String surveyorName) async {
-    if (_formKey.currentState!.validate()) {
-      final locState = ref.read(locationProvider);
+    final locState = ref.read(locationProvider);
 
+    if (locState.latitude == null || locState.longitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('لطفا ابتدا موقعیت جغرافیایی (GPS) را تعیین کنید.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    if (_formKey.currentState!.validate()) {
       final Jalali now = Jalali.now();
-      final dateStr = '${now.year}/${now.month}/${now.day} ${DateTime.now().hour}:${DateTime.now().minute}';
+      final dateStr =
+          '${now.year}/${now.month}/${now.day} ${DateTime.now().hour}:${DateTime.now().minute}';
 
       final success = await ref.read(formControllerProvider.notifier).saveWorkshop(
             factoryName: _factoryNameController.text,
@@ -80,6 +118,7 @@ class _FormScreenState extends ConsumerState<FormScreen> {
             phone1: _phone1Controller.text,
             phone2: _phone2Controller.text,
             product: _productController.text,
+            industrialTown: _selectedTown ?? '',
             address: _addressController.text,
             website: _websiteController.text,
             socialMedia: _socialMediaController.text,
@@ -94,7 +133,7 @@ class _FormScreenState extends ConsumerState<FormScreen> {
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('اطلاعات کارخانه با موفقیت ذخیره شد.'),
+            content: const Text('اطلاعات کارگاه صنعتی با موفقیت ذخیره شد.'),
             backgroundColor: Theme.of(context).colorScheme.secondary,
           ),
         );
@@ -102,6 +141,23 @@ class _FormScreenState extends ConsumerState<FormScreen> {
         ref.read(locationProvider.notifier).fetchCurrentLocation();
       }
     }
+  }
+
+  Widget _buildLabel(String text, bool isRequired) {
+    return RichText(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(color: Colors.black54, fontSize: 14),
+        children: isRequired
+            ? [
+                const TextSpan(
+                  text: ' *',
+                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                )
+              ]
+            : [],
+      ),
+    );
   }
 
   @override
@@ -117,9 +173,7 @@ class _FormScreenState extends ConsumerState<FormScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('ثبت اطلاعات کارخانه'),
-      ),
+      appBar: AppBar(title: const Text('ثبت اطلاعات کارگاه صنعتی')),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(16.w),
@@ -144,7 +198,9 @@ class _FormScreenState extends ConsumerState<FormScreen> {
                               Gap(8.w),
                               Text(
                                 'ثبت‌کننده: $surveyorName',
-                                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),
@@ -159,50 +215,98 @@ class _FormScreenState extends ConsumerState<FormScreen> {
                   Gap(16.h),
 
                   Text(
-                    'مشخصات کارخانه',
+                    'مشخصات کارگاه صنعتی',
                     style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   Gap(12.h),
 
                   TextFormField(
                     controller: _factoryNameController,
-                    validator: (val) => val == null || val.trim().isEmpty ? 'لطفا نام کارخانه را وارد کنید' : null,
-                    decoration: const InputDecoration(labelText: 'نام کارخانه', prefixIcon: Icon(Icons.factory)),
+                    validator: (val) => val == null || val.trim().isEmpty
+                        ? 'لطفا نام کارگاه صنعتی را وارد کنید'
+                        : null,
+                    decoration: InputDecoration(
+                      label: _buildLabel('نام کارگاه صنعتی', true),
+                      prefixIcon: const Icon(Icons.factory),
+                    ),
                   ),
                   Gap(12.h),
 
                   TextFormField(
                     controller: _managerNameController,
-                    validator: (val) => val == null || val.trim().isEmpty ? 'لطفا مسئول کارخانه را وارد کنید' : null,
-                    decoration: const InputDecoration(labelText: 'مسئول کارخانه', prefixIcon: Icon(Icons.person)),
+                    validator: (val) => val == null || val.trim().isEmpty
+                        ? 'لطفا مسئول کارگاه صنعتی را وارد کنید'
+                        : null,
+                    decoration: InputDecoration(
+                      label: _buildLabel('مسئول کارگاه صنعتی', true),
+                      prefixIcon: const Icon(Icons.person),
+                    ),
                   ),
                   Gap(12.h),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _phone1Controller,
-                          keyboardType: TextInputType.phone,
-                          validator: (val) => val == null || val.trim().isEmpty ? 'تلفن ۱ ضروری است' : null,
-                          decoration: const InputDecoration(labelText: 'تلفن کارخانه ۱', prefixIcon: Icon(Icons.phone)),
-                        ),
-                      ),
-                      Gap(12.w),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _phone2Controller,
-                          keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(labelText: 'تلفن کارخانه ۲', prefixIcon: Icon(Icons.phone)),
-                        ),
-                      ),
-                    ],
+                  TextFormField(
+                    controller: _phone1Controller,
+                    keyboardType: TextInputType.phone,
+                    maxLength: 11,
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) return 'تلفن ۱ ضروری است';
+                      if (val.length != 11) return 'شماره تلفن باید ۱۱ رقم باشد';
+                      return null;
+                    },
+                    decoration: InputDecoration(
+                      label: _buildLabel('تلفن کارگاه ۱', true),
+                      prefixIcon: const Icon(Icons.phone),
+                      counterText: '',
+                    ),
+                  ),
+                  Gap(12.h),
+
+                  TextFormField(
+                    controller: _phone2Controller,
+                    keyboardType: TextInputType.phone,
+                    maxLength: 11,
+                    validator: (val) {
+                      if (val != null && val.isNotEmpty && val.length != 11) {
+                        return 'شماره تلفن باید ۱۱ رقم باشد';
+                      }
+                      return null;
+                    },
+                    decoration: InputDecoration(
+                      label: _buildLabel('تلفن کارگاه ۲', false),
+                      prefixIcon: const Icon(Icons.phone),
+                      counterText: '',
+                    ),
                   ),
                   Gap(12.h),
 
                   TextFormField(
                     controller: _productController,
-                    decoration: const InputDecoration(labelText: 'محصول تولیدی', prefixIcon: Icon(Icons.inventory)),
+                    decoration: InputDecoration(
+                      label: _buildLabel('محصول تولیدی', false),
+                      prefixIcon: const Icon(Icons.inventory),
+                    ),
+                  ),
+                  Gap(12.h),
+
+                  DropdownButtonFormField<String>(
+                    value: _selectedTown,
+                    onChanged: (val) {
+                      setState(() {
+                        _selectedTown = val;
+                      });
+                    },
+                    validator: (val) =>
+                        val == null || val.isEmpty ? 'لطفا شهرک صنعتی را انتخاب کنید' : null,
+                    items: _industrialTowns.map((town) {
+                      return DropdownMenuItem(
+                        value: town,
+                        child: Text(town),
+                      );
+                    }).toList(),
+                    decoration: InputDecoration(
+                      label: _buildLabel('شهرک صنعتی', true),
+                      prefixIcon: const Icon(Icons.location_city),
+                    ),
                   ),
                   Gap(12.h),
 
@@ -210,34 +314,49 @@ class _FormScreenState extends ConsumerState<FormScreen> {
                     controller: _addressController,
                     maxLines: 2,
                     validator: (val) => val == null || val.trim().isEmpty ? 'آدرس ضروری است' : null,
-                    decoration: const InputDecoration(labelText: 'آدرس کارخانه', prefixIcon: Icon(Icons.location_on)),
+                    decoration: InputDecoration(
+                      label: _buildLabel('آدرس کارگاه صنعتی', true),
+                      prefixIcon: const Icon(Icons.location_on),
+                    ),
                   ),
                   Gap(12.h),
 
                   TextFormField(
                     controller: _websiteController,
                     keyboardType: TextInputType.url,
-                    decoration: const InputDecoration(labelText: 'سایت', prefixIcon: Icon(Icons.language)),
+                    decoration: InputDecoration(
+                      label: _buildLabel('سایت', false),
+                      prefixIcon: const Icon(Icons.language),
+                    ),
                   ),
                   Gap(12.h),
 
                   TextFormField(
                     controller: _socialMediaController,
-                    decoration: const InputDecoration(labelText: 'شبکه اجتماعی و پیامرسان', prefixIcon: Icon(Icons.chat)),
+                    decoration: InputDecoration(
+                      label: _buildLabel('شبکه اجتماعی و پیامرسان', false),
+                      prefixIcon: const Icon(Icons.chat),
+                    ),
                   ),
                   Gap(12.h),
 
                   TextFormField(
                     controller: _neshanAddressController,
                     keyboardType: TextInputType.url,
-                    decoration: const InputDecoration(labelText: 'آدرس نشان', prefixIcon: Icon(Icons.map)),
+                    decoration: InputDecoration(
+                      label: _buildLabel('آدرس', false),
+                      prefixIcon: const Icon(Icons.map),
+                    ),
                   ),
                   Gap(12.h),
 
                   TextFormField(
                     controller: _descriptionController,
                     maxLines: 3,
-                    decoration: const InputDecoration(labelText: 'توضیحات', prefixIcon: Icon(Icons.description)),
+                    decoration: InputDecoration(
+                      label: _buildLabel('توضیحات', false),
+                      prefixIcon: const Icon(Icons.description),
+                    ),
                   ),
                   Gap(20.h),
 
@@ -248,6 +367,18 @@ class _FormScreenState extends ConsumerState<FormScreen> {
                   Gap(8.h),
 
                   Card(
+                    color: locationState.latitude != null
+                        ? Colors.green.withOpacity(0.05)
+                        : theme.cardColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.r),
+                      side: BorderSide(
+                        color: locationState.latitude != null
+                            ? Colors.green.withOpacity(0.5)
+                            : Colors.transparent,
+                        width: 1,
+                      ),
+                    ),
                     child: Padding(
                       padding: EdgeInsets.all(12.w),
                       child: Column(
@@ -268,22 +399,65 @@ class _FormScreenState extends ConsumerState<FormScreen> {
                               ],
                             )
                           else if (locationState.latitude != null)
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: [
-                                Text('عرض: ${locationState.latitude!.toStringAsFixed(6)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                Text('طول: ${locationState.longitude!.toStringAsFixed(6)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                              ],
+                            Container(
+                              padding: EdgeInsets.all(8.w),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8.r),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                children: [
+                                  Column(
+                                    children: [
+                                      const Text('عرض جغرافیایی', style: TextStyle(fontSize: 10)),
+                                      Text(
+                                        locationState.latitude!.toStringAsFixed(6),
+                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                  Container(width: 1, height: 30, color: Colors.green.withOpacity(0.3)),
+                                  Column(
+                                    children: [
+                                      const Text('طول جغرافیایی', style: TextStyle(fontSize: 10)),
+                                      Text(
+                                        locationState.longitude!.toStringAsFixed(6),
+                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             )
                           else
-                            const Text('موقعیت مکانی یافت نشد.', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                            const Text(
+                              'موقعیت مکانی یافت نشد.',
+                              style: TextStyle(color: Colors.grey, fontSize: 13),
+                            ),
                           Gap(12.h),
 
                           Row(
                             children: [
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: locationState.isFetching ? null : () => ref.read(locationProvider.notifier).fetchCurrentLocation(),
+                                  onPressed: locationState.isFetching
+                                      ? null
+                                      : () async {
+                                          final status = await Permission.location.request();
+                                          if (status.isGranted && mounted) {
+                                            ref.read(locationProvider.notifier).fetchCurrentLocation();
+                                          } else if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'برای انتخاب موقعیت از روی نقشه به مجوز مکان نیاز است.',
+                                                ),
+                                                backgroundColor: Colors.redAccent,
+                                              ),
+                                            );
+                                          }
+                                        },
                                   icon: const Icon(Icons.my_location),
                                   label: const Text('مکان‌یابی مجدد'),
                                 ),
@@ -291,15 +465,30 @@ class _FormScreenState extends ConsumerState<FormScreen> {
                               Gap(8.w),
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    Navigator.push(context, MaterialPageRoute(builder: (context) => const MapScreen()));
+                                  onPressed: () async {
+                                    final status = await Permission.location.request();
+                                    if (status.isGranted && mounted) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (context) => const MapScreen()),
+                                      );
+                                    } else if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                            'برای انتخاب موقعیت از روی نقشه به مجوز مکان نیاز است.',
+                                          ),
+                                          backgroundColor: Colors.redAccent,
+                                        ),
+                                      );
+                                    }
                                   },
                                   icon: const Icon(Icons.map),
                                   label: const Text('انتخاب از روی نقشه'),
                                 ),
                               ),
                             ],
-                          )
+                          ),
                         ],
                       ),
                     ),
