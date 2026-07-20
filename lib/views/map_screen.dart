@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_osm_plugin/flutter_osm_plugin.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:neshan_maps_flutter/map.dart';
 
 import '../controllers/location_controller.dart';
 
@@ -14,26 +13,26 @@ class MapScreen extends ConsumerStatefulWidget {
 }
 
 class _MapScreenState extends ConsumerState<MapScreen> {
-  final NeshanMapController _mapController = NeshanMapController();
+  late MapController _mapController;
   bool _isMapReady = false;
-  LatLng? _currentCenter;
-
-  // Swap this with your actual Neshan web map key from platform.neshan.org
-  static const String _neshanWebKey = 'web.9eac8e1b3e014635b3215228ad201b3c';
+  GeoPoint? _currentCenter;
 
   @override
   void initState() {
     super.initState();
-    _initMap();
+    final locationState = ref.read(locationProvider);
+    _mapController = MapController(
+      initPosition: GeoPoint(
+        latitude: locationState.latitude ?? 35.6892,
+        longitude: locationState.longitude ?? 51.3890,
+      ),
+    );
   }
 
-  Future<void> _initMap() async {
-    await _mapController.ready;
-    if (mounted) {
-      setState(() {
-        _isMapReady = true;
-      });
-    }
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
   }
 
   @override
@@ -45,9 +44,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     final initialLat = locationState.latitude ?? 35.6892;
     final initialLng = locationState.longitude ?? 51.3890;
 
-    // Set initial center if not already set
-    _currentCenter ??= LatLng(initialLat, initialLng);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('انتخاب موقعیت روی نقشه'),
@@ -58,34 +54,52 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       ),
       body: Stack(
         children: [
-          // Neshan Map Widget
-          NeshanMap(
-            mapKey: _neshanWebKey,
+          // OSM Map Widget
+          OSMFlutter(
             controller: _mapController,
-            onLocationChanged: (double lat, double lng) {
-              _currentCenter = LatLng(lat, lng);
+            onMapIsReady: (isReady) {
+              if (isReady) {
+                setState(() {
+                  _isMapReady = true;
+                });
+              }
             },
-            config: NeshanMapConfig(
-              mapType: NeshanMapType.neshanRaster,
-              initialCenter: LatLng(initialLat, initialLng),
-              initialZoom: 15.0,
-              showTraffic: false,
+            osmOption: OSMOption(
+              userLocationMarker: UserLocationMaker(
+                personMarker: const MarkerIcon(
+                  icon: Icon(Icons.location_history, color: Colors.blue, size: 48),
+                ),
+                directionArrowMarker: const MarkerIcon(icon: Icon(Icons.double_arrow, size: 48)),
+              ),
+              zoomOption: const ZoomOption(
+                initZoom: 15,
+                minZoomLevel: 3,
+                maxZoomLevel: 19,
+                stepZoom: 1.0,
+              ),
+              userTrackingOption: const UserTrackingOption(
+                enableTracking: true,
+                unFollowUser: false,
+              ),
+              roadConfiguration: const RoadOption(roadColor: Colors.blueAccent),
             ),
           ),
 
           // Central Pin Overlay
           if (_isMapReady)
-            Align(
-              alignment: Alignment.center,
-              child: Padding(
-                padding: EdgeInsets.only(bottom: 24.h), // Adjust for pin bottom alignment
-                child: Icon(
-                  Icons.location_on_rounded,
-                  size: 48.r,
-                  color: Colors.redAccent,
-                  shadows: const [
-                    Shadow(color: Colors.black26, offset: Offset(0, 4), blurRadius: 4),
-                  ],
+            IgnorePointer(
+              child: Align(
+                alignment: Alignment.center,
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: 24.h), // Adjust for pin bottom alignment
+                  child: Icon(
+                    Icons.location_on_rounded,
+                    size: 48.r,
+                    color: Colors.redAccent,
+                    shadows: const [
+                      Shadow(color: Colors.black26, offset: Offset(0, 4), blurRadius: 4),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -140,32 +154,22 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Future<void> _confirmLocation() async {
     try {
-      // Use the tracked center coordinate
-      final center = _currentCenter;
+      // Get the current center from the map controller
+      final center = await _mapController.centerMap;
 
-      if (center != null) {
-        // Update the location state globally
-        ref.read(locationProvider.notifier).updateManualLocation(center.latitude, center.longitude);
+      // Update the location state globally
+      ref.read(locationProvider.notifier).updateManualLocation(center.latitude, center.longitude);
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('موقعیت جدید با موفقیت ثبت شد.'),
-              duration: Duration(seconds: 2),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Return to the previous screen (FormScreen)
-          Navigator.of(context).pop();
-        }
-      } else {
-        // Fallback if _currentCenter is somehow null
-        await _mapController.ready;
-        final LatLng? fallbackCenter = await _mapController.getCurrentLocation();
-        if (fallbackCenter != null) {
-          ref.read(locationProvider.notifier).updateManualLocation(fallbackCenter.latitude, fallbackCenter.longitude);
-          if (mounted) Navigator.of(context).pop();
-        }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('موقعیت جدید با موفقیت ثبت شد.'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Return to the previous screen (FormScreen)
+        Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {

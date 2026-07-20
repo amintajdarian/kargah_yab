@@ -101,9 +101,9 @@ class WorkshopFormModel {
 
   // Returns data as list of values corresponding to headers
   List<dynamic> toExcelRow(int rowNumber) {
-    String generatedNeshanUrl = neshanAddress;
+    String generatedOsmUrl = neshanAddress;
     if (latitude != null && longitude != null) {
-      generatedNeshanUrl = 'https://neshan.org/maps/@$latitude,$longitude,15z,0p';
+      generatedOsmUrl = 'https://www.openstreetmap.org/#map=15/$latitude/$longitude';
     }
 
     return [
@@ -120,7 +120,7 @@ class WorkshopFormModel {
       description,
       latitude,
       longitude,
-      generatedNeshanUrl,
+      generatedOsmUrl,
       registeredBy,
       createdAt,
     ];
