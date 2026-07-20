@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -36,11 +37,11 @@ class LocationState {
 
 class LocationController extends StateNotifier<LocationState> {
   LocationController() : super(LocationState());
+  StreamSubscription<Position>? _positionStreamSubscription;
 
   Future<void> fetchCurrentLocation() async {
     state = state.copyWith(isFetching: true, errorMessage: null);
     try {
-      // Check location service
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         state = state.copyWith(
@@ -50,28 +51,19 @@ class LocationController extends StateNotifier<LocationState> {
         return;
       }
 
-      // Check permission via permission_handler
       var status = await Permission.location.status;
       if (status.isDenied) {
         status = await Permission.location.request();
-        if (status.isDenied) {
-          state = state.copyWith(
-            isFetching: false,
-            errorMessage: 'مجوز دسترسی به مکان داده نشد.',
-          );
-          return;
-        }
       }
 
-      if (status.isPermanentlyDenied) {
+      if (!status.isGranted) {
         state = state.copyWith(
           isFetching: false,
-          errorMessage: 'دسترسی به مکان برای همیشه غیرفعال است. لطفا از تنظیمات گوشی آن را فعال کنید.',
+          errorMessage: 'مجوز دسترسی به مکان داده نشد.',
         );
         return;
       }
 
-      // Get current position
       Position position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
@@ -90,6 +82,32 @@ class LocationController extends StateNotifier<LocationState> {
         errorMessage: 'خطا در دریافت موقعیت مکانی: $e',
       );
     }
+  }
+
+  void startLocationUpdates() {
+    _positionStreamSubscription?.cancel();
+    _positionStreamSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      ),
+    ).listen((Position position) {
+      state = state.copyWith(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+    });
+  }
+
+  void stopLocationUpdates() {
+    _positionStreamSubscription?.cancel();
+    _positionStreamSubscription = null;
+  }
+
+  @override
+  void dispose() {
+    _positionStreamSubscription?.cancel();
+    super.dispose();
   }
 
   void updateManualLocation(double lat, double lng) {

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_osm_plugin/flutter_osm_plugin.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../controllers/location_controller.dart';
 
@@ -13,20 +15,23 @@ class MapScreen extends ConsumerStatefulWidget {
 }
 
 class _MapScreenState extends ConsumerState<MapScreen> {
-  late MapController _mapController;
+  late final MapController _mapController;
+  LatLng? _currentPosition;
   bool _isMapReady = false;
-  GeoPoint? _currentCenter;
 
   @override
   void initState() {
     super.initState();
+    _mapController = MapController();
+
+    // Initialize position from provider
     final locationState = ref.read(locationProvider);
-    _mapController = MapController(
-      initPosition: GeoPoint(
-        latitude: locationState.latitude ?? 35.6892,
-        longitude: locationState.longitude ?? 51.3890,
-      ),
-    );
+    if (locationState.latitude != null && locationState.longitude != null) {
+      _currentPosition = LatLng(locationState.latitude!, locationState.longitude!);
+    } else {
+      // Default to Tehran
+      _currentPosition = const LatLng(35.6892, 51.3890);
+    }
   }
 
   @override
@@ -35,14 +40,28 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     super.dispose();
   }
 
+  Future<void> _moveToCurrentLocation() async {
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      final newPos = LatLng(position.latitude, position.longitude);
+      _mapController.move(newPos, 15);
+      setState(() {
+        _currentPosition = newPos;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('خطا در یافتن موقعیت شما: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final locationState = ref.watch(locationProvider);
-
-    // Initial center coordinates
-    final initialLat = locationState.latitude ?? 35.6892;
-    final initialLng = locationState.longitude ?? 51.3890;
 
     return Scaffold(
       appBar: AppBar(
@@ -51,38 +70,34 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(icon: const Icon(Icons.my_location), onPressed: _moveToCurrentLocation),
+        ],
       ),
       body: Stack(
         children: [
-          // OSM Map Widget
-          OSMFlutter(
-            controller: _mapController,
-            onMapIsReady: (isReady) {
-              if (isReady) {
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _currentPosition!,
+              initialZoom: 15,
+              onMapReady: () {
                 setState(() {
                   _isMapReady = true;
                 });
-              }
-            },
-            osmOption: OSMOption(
-              userLocationMarker: UserLocationMaker(
-                personMarker: const MarkerIcon(
-                  icon: Icon(Icons.location_history, color: Colors.blue, size: 48),
-                ),
-                directionArrowMarker: const MarkerIcon(icon: Icon(Icons.double_arrow, size: 48)),
-              ),
-              zoomOption: const ZoomOption(
-                initZoom: 15,
-                minZoomLevel: 3,
-                maxZoomLevel: 19,
-                stepZoom: 1.0,
-              ),
-              userTrackingOption: const UserTrackingOption(
-                enableTracking: true,
-                unFollowUser: false,
-              ),
-              roadConfiguration: const RoadOption(roadColor: Colors.blueAccent),
+              },
             ),
+            children: [
+              TileLayer(
+                urlTemplate:
+                    'https://server.arcgisonline.com/ArcGIS/rest/services/'
+                    'World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                userAgentPackageName: 'com.example.kargah_yab',
+              ),
+
+              // Marker for "current" or "selected" position could go here,
+              // but we are using a central pin overlay for picking.
+            ],
           ),
 
           // Central Pin Overlay
@@ -91,7 +106,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               child: Align(
                 alignment: Alignment.center,
                 child: Padding(
-                  padding: EdgeInsets.only(bottom: 24.h), // Adjust for pin bottom alignment
+                  padding: EdgeInsets.only(bottom: 24.h),
                   child: Icon(
                     Icons.location_on_rounded,
                     size: 48.r,
@@ -153,33 +168,18 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _confirmLocation() async {
-    try {
-      // Get the current center from the map controller
-      final center = await _mapController.centerMap;
+    final center = _mapController.camera.center;
+    ref.read(locationProvider.notifier).updateManualLocation(center.latitude, center.longitude);
 
-      // Update the location state globally
-      ref.read(locationProvider.notifier).updateManualLocation(center.latitude, center.longitude);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('موقعیت جدید با موفقیت ثبت شد.'),
-            duration: Duration(seconds: 2),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Return to the previous screen (FormScreen)
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('خطا در دریافت موقعیت از نقشه: $e'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('موقعیت جدید با موفقیت ثبت شد.'),
+          duration: Duration(seconds: 2),
+          backgroundColor: Colors.green,
+        ),
+      );
+      Navigator.of(context).pop();
     }
   }
 }
