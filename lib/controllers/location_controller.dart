@@ -6,6 +6,8 @@ import 'package:permission_handler/permission_handler.dart';
 class LocationState {
   final double? latitude;
   final double? longitude;
+  final double? liveLatitude;
+  final double? liveLongitude;
   final bool isFetching;
   final String? errorMessage;
   final String address;
@@ -13,6 +15,8 @@ class LocationState {
   LocationState({
     this.latitude,
     this.longitude,
+    this.liveLatitude,
+    this.liveLongitude,
     this.isFetching = false,
     this.errorMessage,
     this.address = '',
@@ -21,6 +25,8 @@ class LocationState {
   LocationState copyWith({
     double? latitude,
     double? longitude,
+    double? liveLatitude,
+    double? liveLongitude,
     bool? isFetching,
     String? errorMessage,
     String? address,
@@ -28,6 +34,8 @@ class LocationState {
     return LocationState(
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      liveLatitude: liveLatitude ?? this.liveLatitude,
+      liveLongitude: liveLongitude ?? this.liveLongitude,
       isFetching: isFetching ?? this.isFetching,
       errorMessage: errorMessage ?? this.errorMessage,
       address: address ?? this.address,
@@ -71,11 +79,20 @@ class LocationController extends StateNotifier<LocationState> {
         ),
       );
 
-      state = state.copyWith(
-        latitude: position.latitude,
-        longitude: position.longitude,
-        isFetching: false,
-      );
+      if (position.latitude.isFinite && position.longitude.isFinite) {
+        state = state.copyWith(
+          latitude: position.latitude,
+          longitude: position.longitude,
+          liveLatitude: position.latitude,
+          liveLongitude: position.longitude,
+          isFetching: false,
+        );
+      } else {
+        state = state.copyWith(
+          isFetching: false,
+          errorMessage: 'موقعیت دریافت شده نامعتبر است.',
+        );
+      }
     } catch (e) {
       state = state.copyWith(
         isFetching: false,
@@ -89,13 +106,15 @@ class LocationController extends StateNotifier<LocationState> {
     _positionStreamSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 10,
+        distanceFilter: 5,
       ),
     ).listen((Position position) {
-      state = state.copyWith(
-        latitude: position.latitude,
-        longitude: position.longitude,
-      );
+      if (position.latitude.isFinite && position.longitude.isFinite) {
+        state = state.copyWith(
+          liveLatitude: position.latitude,
+          liveLongitude: position.longitude,
+        );
+      }
     });
   }
 
@@ -111,11 +130,13 @@ class LocationController extends StateNotifier<LocationState> {
   }
 
   void updateManualLocation(double lat, double lng) {
-    state = state.copyWith(
-      latitude: lat,
-      longitude: lng,
-      errorMessage: null,
-    );
+    if (lat.isFinite && lng.isFinite) {
+      state = state.copyWith(
+        latitude: lat,
+        longitude: lng,
+        errorMessage: null,
+      );
+    }
   }
 
   void updateAddress(String address) {

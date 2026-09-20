@@ -16,7 +16,7 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   late final MapController _mapController;
-  LatLng? _currentPosition;
+  late final LatLng _initialPosition;
   bool _isMapReady = false;
 
   @override
@@ -24,32 +24,56 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     super.initState();
     _mapController = MapController();
 
-    // Initialize position from provider
+    // Initialize position from provider once
     final locationState = ref.read(locationProvider);
-    if (locationState.latitude != null && locationState.longitude != null) {
-      _currentPosition = LatLng(locationState.latitude!, locationState.longitude!);
+    if (locationState.latitude != null &&
+        locationState.longitude != null &&
+        locationState.latitude!.isFinite &&
+        locationState.longitude!.isFinite) {
+      _initialPosition = LatLng(locationState.latitude!, locationState.longitude!);
     } else {
       // Default to Tehran
-      _currentPosition = const LatLng(35.6892, 51.3890);
+      _initialPosition = const LatLng(35.6892, 51.3890);
     }
+
+    // Start live location updates for the blue dot
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(locationProvider.notifier).startLocationUpdates();
+    });
   }
 
   @override
   void dispose() {
+    // Stop updates when leaving map
+    ref.read(locationProvider.notifier).stopLocationUpdates();
     _mapController.dispose();
     super.dispose();
   }
 
   Future<void> _moveToCurrentLocation() async {
     try {
-      Position position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-      final newPos = LatLng(position.latitude, position.longitude);
-      _mapController.move(newPos, 15);
-      setState(() {
-        _currentPosition = newPos;
-      });
+      final locationState = ref.read(locationProvider);
+      LatLng? targetPos;
+
+      if (locationState.liveLatitude != null &&
+          locationState.liveLongitude != null &&
+          locationState.liveLatitude!.isFinite &&
+          locationState.liveLongitude!.isFinite) {
+        targetPos = LatLng(locationState.liveLatitude!, locationState.liveLongitude!);
+      } else {
+        Position position = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        );
+        if (position.latitude.isFinite && position.longitude.isFinite) {
+          targetPos = LatLng(position.latitude, position.longitude);
+        }
+      }
+
+      if (targetPos != null) {
+        _mapController.move(targetPos, 15);
+      } else {
+        throw Exception('موقعیت نامعتبر است.');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -62,6 +86,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final locationState = ref.watch(locationProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -71,7 +96,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.my_location), onPressed: _moveToCurrentLocation),
+          IconButton(
+            icon: const Icon(Icons.my_location),
+            onPressed: locationState.isFetching ? null : _moveToCurrentLocation,
+          ),
         ],
       ),
       body: Stack(
@@ -79,24 +107,60 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _currentPosition!,
+              initialCenter: _initialPosition,
               initialZoom: 15,
               onMapReady: () {
-                setState(() {
-                  _isMapReady = true;
-                });
+                if (mounted) {
+                  setState(() {
+                    _isMapReady = true;
+                  });
+                }
               },
             ),
             children: [
               TileLayer(
                 urlTemplate:
-                    'https://server.arcgisonline.com/ArcGIS/rest/services/'
-                    'World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                    'https://core-sat.maps.yandex.net/tiles?l=sat&x={x}&y={y}&z={z}&scale=1',
                 userAgentPackageName: 'com.example.kargah_yab',
               ),
 
-              // Marker for "current" or "selected" position could go here,
-              // but we are using a central pin overlay for picking.
+              // Blue Dot for live GPS location
+              if (locationState.liveLatitude != null &&
+                  locationState.liveLongitude != null &&
+                  locationState.liveLatitude!.isFinite &&
+                  locationState.liveLongitude!.isFinite)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: LatLng(locationState.liveLatitude!, locationState.liveLongitude!),
+                      width: 20.r,
+                      height: 20.r,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Container(
+                            width: 12.r,
+                            height: 12.r,
+                            decoration: const BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black26,
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
 
@@ -168,18 +232,31 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _confirmLocation() async {
-    final center = _mapController.camera.center;
-    ref.read(locationProvider.notifier).updateManualLocation(center.latitude, center.longitude);
+    final camera = _mapController.camera;
+    final center = camera.center;
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('موقعیت جدید با موفقیت ثبت شد.'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.of(context).pop();
+    if (center.latitude.isFinite && center.longitude.isFinite) {
+      ref.read(locationProvider.notifier).updateManualLocation(center.latitude, center.longitude);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('موقعیت جدید با موفقیت ثبت شد.'),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop();
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('موقعیت انتخاب شده معتبر نیست.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 }
