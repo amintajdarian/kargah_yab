@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:excel/excel.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
 import '../models/workshop_form.dart';
 
@@ -38,161 +38,108 @@ class ReportController extends StateNotifier<ReportState> {
       return;
     }
 
+    // Create a new Excel Document.
+    final xlsio.Workbook workbook = xlsio.Workbook();
+    // Accessing leaf sheet through index.
+    final xlsio.Worksheet sheet = workbook.worksheets[0];
+    sheet.name = 'گزارش کارگاه‌ها';
+    sheet.isRightToLeft = true; // Persian layout is Right-to-Left
+
     try {
-      // Create Excel document
-      final excel = Excel.createExcel();
-      final sheetName = 'گزارش کارگاه‌های صنعتی';
-      excel.rename('Sheet1', sheetName);
-      final sheet = excel[sheetName];
-      sheet.isRTL = true; // Persian layout is Right-to-Left
-
-      // Define standard styling options using correct excel package properties
-      final CellStyle titleStyle = CellStyle(
-        backgroundColorHex: ExcelColor.fromHexString('#4F81BD'), // Soft Blue
-        fontColorHex: ExcelColor.fromHexString('#FFFFFF'),
-        fontFamily: getFontFamily(FontFamily.Calibri),
-        bold: true,
-        fontSize: 14,
-        horizontalAlign: HorizontalAlign.Center,
-        verticalAlign: VerticalAlign.Center,
-      );
-
-      final CellStyle headerStyle = CellStyle(
-        backgroundColorHex: ExcelColor.fromHexString('#DCE6F1'), // Light gray/blue
-        fontColorHex: ExcelColor.fromHexString('#1F4E78'), // Dark blue
-        fontFamily: getFontFamily(FontFamily.Calibri),
-        bold: true,
-        fontSize: 11,
-        horizontalAlign: HorizontalAlign.Center,
-        verticalAlign: VerticalAlign.Center,
-        leftBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#A6A6A6'),
-        ),
-        rightBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#A6A6A6'),
-        ),
-        topBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#A6A6A6'),
-        ),
-        bottomBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#A6A6A6'),
-        ),
-      );
-
-      final CellStyle cellStyleEven = CellStyle(
-        backgroundColorHex: ExcelColor.fromHexString('#F2F2F2'), // Soft gray
-        fontFamily: getFontFamily(FontFamily.Calibri),
-        fontSize: 10,
-        horizontalAlign: HorizontalAlign.Center,
-        verticalAlign: VerticalAlign.Center,
-        leftBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#D9D9D9'),
-        ),
-        rightBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#D9D9D9'),
-        ),
-        topBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#D9D9D9'),
-        ),
-        bottomBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#D9D9D9'),
-        ),
-      );
-
-      final CellStyle cellStyleOdd = CellStyle(
-        backgroundColorHex: ExcelColor.fromHexString('#FFFFFF'), // White
-        fontFamily: getFontFamily(FontFamily.Calibri),
-        fontSize: 10,
-        horizontalAlign: HorizontalAlign.Center,
-        verticalAlign: VerticalAlign.Center,
-        leftBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#D9D9D9'),
-        ),
-        rightBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#D9D9D9'),
-        ),
-        topBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#D9D9D9'),
-        ),
-        bottomBorder: Border(
-          borderStyle: BorderStyle.Thin,
-          borderColorHex: ExcelColor.fromHexString('#D9D9D9'),
-        ),
-      );
-
       final headers = WorkshopFormModel.getExcelHeaders();
       final totalColumns = headers.length;
 
-      // Row 0: Report Title (Merged)
-      sheet.merge(
-        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0),
-        CellIndex.indexByColumnRow(columnIndex: totalColumns - 1, rowIndex: 0),
-        customValue: TextCellValue('گزارش روزانه کارگاه‌های صنعتی ثبت شده - تاریخ: $dateLabel'),
-      );
+      // --- STYLES ---
 
-      // Style Title Cell
-      for (int i = 0; i < totalColumns; i++) {
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0)).cellStyle = titleStyle;
-      }
-      sheet.setRowHeight(0, 45);
+      // Title Style
+      final xlsio.Style titleStyle = workbook.styles.add('TitleStyle');
+      titleStyle.backColor = '#4F81BD';
+      titleStyle.fontColor = '#FFFFFF';
+      titleStyle.fontSize = 14;
+      titleStyle.bold = true;
+      titleStyle.hAlign = xlsio.HAlignType.center;
+      titleStyle.vAlign = xlsio.VAlignType.center;
 
-      // Row 1: Empty Spacer
-      sheet.setRowHeight(1, 15);
+      // Header Style
+      final xlsio.Style headerStyle = workbook.styles.add('HeaderStyle');
+      headerStyle.backColor = '#DCE6F1';
+      headerStyle.fontColor = '#1F4E78';
+      headerStyle.fontSize = 11;
+      headerStyle.bold = true;
+      headerStyle.hAlign = xlsio.HAlignType.center;
+      headerStyle.vAlign = xlsio.VAlignType.center;
+      headerStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+      headerStyle.borders.all.color = '#A6A6A6';
 
-      // Row 2: Headers
+      // Cell Style Even
+      final xlsio.Style cellStyleEven = workbook.styles.add('CellStyleEven');
+      cellStyleEven.backColor = '#F2F2F2';
+      cellStyleEven.fontSize = 10;
+      cellStyleEven.hAlign = xlsio.HAlignType.center;
+      cellStyleEven.vAlign = xlsio.VAlignType.center;
+      cellStyleEven.borders.all.lineStyle = xlsio.LineStyle.thin;
+      cellStyleEven.borders.all.color = '#D9D9D9';
+
+      // Cell Style Odd
+      final xlsio.Style cellStyleOdd = workbook.styles.add('CellStyleOdd');
+      cellStyleOdd.backColor = '#FFFFFF';
+      cellStyleOdd.fontSize = 10;
+      cellStyleOdd.hAlign = xlsio.HAlignType.center;
+      cellStyleOdd.vAlign = xlsio.VAlignType.center;
+      cellStyleOdd.borders.all.lineStyle = xlsio.LineStyle.thin;
+      cellStyleOdd.borders.all.color = '#D9D9D9';
+
+      // --- CONTENT ---
+
+      // Row 1: Report Title (Merged)
+      final xlsio.Range titleRange = sheet.getRangeByIndex(1, 1, 1, totalColumns);
+      titleRange.merge();
+      titleRange.setText('گزارش روزانه کارگاه‌های صنعتی ثبت شده - تاریخ: $dateLabel');
+      titleRange.cellStyle = titleStyle;
+      sheet.setRowHeightInPixels(1, 60);
+
+      // Row 2: Spacer (Empty)
+      sheet.setRowHeightInPixels(2, 10);
+
+      // Row 3: Headers
       for (int i = 0; i < headers.length; i++) {
-        final cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 2));
-        cell.value = TextCellValue(headers[i]);
-        cell.cellStyle = headerStyle;
+        final xlsio.Range headerCell = sheet.getRangeByIndex(3, i + 1);
+        headerCell.setText(headers[i]);
+        headerCell.cellStyle = headerStyle;
       }
-      sheet.setRowHeight(2, 30);
+      sheet.setRowHeightInPixels(3, 35);
 
-      // Row 3 onwards: Data Rows
+      // Row 4 onwards: Data Rows
       for (int rowIndex = 0; rowIndex < workshops.length; rowIndex++) {
         final item = workshops[rowIndex];
         final rowData = item.toExcelRow(rowIndex + 1);
-        final currentRowIdx = 3 + rowIndex;
+        final currentRowIdx = 4 + rowIndex;
         final currentStyle = rowIndex % 2 == 0 ? cellStyleOdd : cellStyleEven;
 
         for (int colIndex = 0; colIndex < rowData.length; colIndex++) {
-          final cell = sheet.cell(
-            CellIndex.indexByColumnRow(columnIndex: colIndex, rowIndex: currentRowIdx),
-          );
-
+          final xlsio.Range cell = sheet.getRangeByIndex(currentRowIdx, colIndex + 1);
           final val = rowData[colIndex];
+
           if (val == null) {
-            cell.value = null;
+            cell.setText('');
           } else if (val is num) {
-            cell.value = DoubleCellValue(val.toDouble());
+            cell.setNumber(val.toDouble());
           } else {
-            cell.value = TextCellValue(val.toString());
+            cell.setText(val.toString());
           }
           cell.cellStyle = currentStyle;
         }
-        sheet.setRowHeight(currentRowIdx, 25);
+        sheet.setRowHeightInPixels(currentRowIdx, 30);
       }
 
-      // Auto-fit column widths (with padding)
-      for (int i = 0; i < totalColumns; i++) {
-        sheet.setColumnWidth(i, 20.0); // standard clean width
+      // Column Widths
+      for (int i = 1; i <= totalColumns; i++) {
+        sheet.setColumnWidthInPixels(i, 120);
       }
 
-      // Encode the Excel file
-      final excelBytes = excel.encode();
-      if (excelBytes == null) {
-        throw Exception('خطا در فشرده‌سازی فایل اکسل');
-      }
+      // Save and dispose.
+      final List<int> excelBytes = workbook.saveAsStream();
+      workbook.dispose();
 
       final fileName = 'kargah_report_${dateLabel.replaceAll("/", "_")}.xlsx';
 
@@ -218,7 +165,7 @@ class ReportController extends StateNotifier<ReportState> {
             savedSuccessfully = true;
             savedPath = filePath;
           } catch (e) {
-            // Direct write failed (e.g. Android 13+ restrictions), fallback to FilePicker
+            // Direct write failed
           }
         }
       }
@@ -239,7 +186,6 @@ class ReportController extends StateNotifier<ReportState> {
         );
 
         if (selectedPath != null) {
-          // If we got bytes and wrote it, or need to write manually
           if (!Platform.isAndroid) {
             final file = File(selectedPath);
             await file.writeAsBytes(excelBytes);

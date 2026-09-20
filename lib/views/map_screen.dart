@@ -16,7 +16,7 @@ class MapScreen extends ConsumerStatefulWidget {
 
 class _MapScreenState extends ConsumerState<MapScreen> {
   late final MapController _mapController;
-  late final LatLng _initialPosition;
+  late LatLng _selectedPosition; // Now mutable to track tap/drag
   bool _isMapReady = false;
 
   @override
@@ -30,10 +30,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         locationState.longitude != null &&
         locationState.latitude!.isFinite &&
         locationState.longitude!.isFinite) {
-      _initialPosition = LatLng(locationState.latitude!, locationState.longitude!);
+      _selectedPosition = LatLng(locationState.latitude!, locationState.longitude!);
     } else {
       // Default to Tehran
-      _initialPosition = const LatLng(35.6892, 51.3890);
+      _selectedPosition = const LatLng(35.6892, 51.3890);
     }
 
     // Start live location updates for the blue dot
@@ -71,6 +71,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
       if (targetPos != null) {
         _mapController.move(targetPos, 15);
+        setState(() {
+          _selectedPosition = targetPos!;
+        });
       } else {
         throw Exception('موقعیت نامعتبر است.');
       }
@@ -107,12 +110,26 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: _initialPosition,
+              initialCenter: _selectedPosition,
               initialZoom: 15,
               onMapReady: () {
                 if (mounted) {
                   setState(() {
                     _isMapReady = true;
+                  });
+                }
+              },
+              // Allow selection by tapping anywhere
+              onTap: (tapPosition, latLng) {
+                setState(() {
+                  _selectedPosition = latLng;
+                });
+              },
+              // Keep pin synchronized if map is dragged
+              onPositionChanged: (position, hasGesture) {
+                if (hasGesture) {
+                  setState(() {
+                    _selectedPosition = position.center;
                   });
                 }
               },
@@ -124,13 +141,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 userAgentPackageName: 'com.example.kargah_yab',
               ),
 
-              // Blue Dot for live GPS location
-              if (locationState.liveLatitude != null &&
-                  locationState.liveLongitude != null &&
-                  locationState.liveLatitude!.isFinite &&
-                  locationState.liveLongitude!.isFinite)
-                MarkerLayer(
-                  markers: [
+              MarkerLayer(
+                markers: [
+                  // 1. Blue Dot for live GPS location
+                  if (locationState.liveLatitude != null &&
+                      locationState.liveLongitude != null &&
+                      locationState.liveLatitude!.isFinite &&
+                      locationState.liveLongitude!.isFinite)
                     Marker(
                       point: LatLng(locationState.liveLatitude!, locationState.liveLongitude!),
                       width: 20.r,
@@ -159,29 +176,54 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                         ),
                       ),
                     ),
-                  ],
-                ),
+
+                  // 2. Selection Pin (Dynamic Marker)
+                  if (_isMapReady)
+                    Marker(
+                      point: _selectedPosition,
+                      width: 60.r,
+                      height: 80.r,
+                      alignment: Alignment.topCenter,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(4.r),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 8,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.location_on_rounded,
+                              size: 40.r,
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                          Container(
+                            width: 3.w,
+                            height: 12.h,
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent,
+                              borderRadius: BorderRadius.only(
+                                bottomLeft: Radius.circular(2.r),
+                                bottomRight: Radius.circular(2.r),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ],
           ),
-
-          // Central Pin Overlay
-          if (_isMapReady)
-            IgnorePointer(
-              child: Align(
-                alignment: Alignment.center,
-                child: Padding(
-                  padding: EdgeInsets.only(bottom: 24.h),
-                  child: Icon(
-                    Icons.location_on_rounded,
-                    size: 48.r,
-                    color: Colors.redAccent,
-                    shadows: const [
-                      Shadow(color: Colors.black26, offset: Offset(0, 4), blurRadius: 4),
-                    ],
-                  ),
-                ),
-              ),
-            ),
 
           // Top Info Banner
           Positioned(
@@ -194,11 +236,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
                 child: const Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.blue),
+                    Icon(Icons.touch_app, color: Colors.blue),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'نقشه را بکشید تا مرکز آن روی مکان مورد نظر تنظیم شود.',
+                        'برای انتخاب مکان، روی نقشه بزنید یا نقشه را بکشید.',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                         textDirection: TextDirection.rtl,
                       ),
@@ -232,11 +274,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   }
 
   Future<void> _confirmLocation() async {
-    final camera = _mapController.camera;
-    final center = camera.center;
-
-    if (center.latitude.isFinite && center.longitude.isFinite) {
-      ref.read(locationProvider.notifier).updateManualLocation(center.latitude, center.longitude);
+    if (_selectedPosition.latitude.isFinite && _selectedPosition.longitude.isFinite) {
+      ref
+          .read(locationProvider.notifier)
+          .updateManualLocation(_selectedPosition.latitude, _selectedPosition.longitude);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
